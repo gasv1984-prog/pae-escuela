@@ -253,25 +253,36 @@
             if (estudiantesFiltrados.length === 0) return;
             
             if (estudiantesFiltrados.length > 500) {
-                if (!confirm(`Estás a punto de generar ${estudiantesFiltrados.length} carnets para imprimir. Esto puede hacer que tu navegador se congele unos segundos. ¿Deseas continuar?`)) {
+                if (!confirm(`Estás a punto de generar ${estudiantesFiltrados.length} carnets para imprimir. ¿Deseas continuar?`)) {
                     return;
                 }
             }
             
             const bulkSection = document.getElementById('bulkPrintSection');
-            bulkSection.innerHTML = ''; // Limpiar anterior
+            const mainContainer = document.querySelector('.container');
             
             const btn = document.getElementById('btnImprimirLote');
             const originalText = btn.innerText;
             btn.innerText = "⏳ Generando códigos QR...";
             btn.disabled = true;
 
-            // Damos un pequeño delay para que el navegador cambie el texto del botón antes de congelarse generando QRs
+            // 1. Mostrar visualmente la sección para que la librería QR calcule bien el tamaño
+            mainContainer.style.display = 'none'; 
+            bulkSection.style.display = 'flex';
+            bulkSection.style.flexWrap = 'wrap';
+            bulkSection.style.justifyContent = 'center';
+            bulkSection.style.gap = '15px';
+            bulkSection.style.padding = '20px';
+            bulkSection.innerHTML = '<h3 style="width:100%; text-align:center; color:#666; margin-bottom:20px;">Preparando carnets para impresión...</h3>'; 
+
+            // Damos un pequeño delay 
             setTimeout(() => {
+                bulkSection.innerHTML = ''; // Quitar mensaje
+                
                 estudiantesFiltrados.forEach(est => {
-                    // Crear el HTML de la tarjeta
                     const card = document.createElement('div');
                     card.className = 'carnet-print-container bulk-card';
+                    card.style.position = 'relative'; // Evitar colapsos
                     
                     const header = document.createElement('div');
                     header.className = 'carnet-header';
@@ -290,6 +301,9 @@
                     
                     const qr = document.createElement('div');
                     qr.className = 'carnet-qr';
+                    qr.style.width = '150px';
+                    qr.style.height = '150px';
+                    qr.style.margin = '0 auto';
                     
                     const footer = document.createElement('div');
                     footer.className = 'carnet-footer';
@@ -315,19 +329,25 @@
                     });
                 });
                 
-                // Imprimir y restaurar
+                // Imprimir y restaurar usando onafterprint si es posible, o timeout largo
                 btn.innerText = "Abriendo ventana de impresión...";
+                
                 setTimeout(() => {
-                    // Agrego clase temporal al body para ocultar el resto durante printLote
                     document.body.classList.add('printing-bulk');
                     window.print();
-                    document.body.classList.remove('printing-bulk');
                     
-                    bulkSection.innerHTML = '';
-                    btn.innerText = originalText;
-                    btn.disabled = false;
-                }, 500);
-            }, 50);
+                    // Restaurar todo después de imprimir
+                    setTimeout(() => {
+                        document.body.classList.remove('printing-bulk');
+                        bulkSection.innerHTML = '';
+                        bulkSection.style.display = 'none';
+                        mainContainer.style.display = 'block';
+                        btn.innerText = originalText;
+                        btn.disabled = false;
+                    }, 500); // Retardo post-impresión
+                    
+                }, 1000); // 1 sec para dar tiempo a renderizar todos los QR en pantallas lentas
+            }, 100);
         }
 
         // Cargar al iniciar
