@@ -176,3 +176,118 @@ body {
     background-color: #FEE2E2;
     color: #991B1B;
 }
+
+/* =========================================
+   DISEÑO PARA EL CARNET (ID CARD CR80)
+   ========================================= */
+.carnet-print-container {
+    width: 5.4cm;
+    height: 8.6cm;
+    background: white;
+    border: 1px dashed #ccc; /* Guía de corte / límite suave */
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+    color: var(--text-main);
+    overflow: hidden;
+    position: relative;
+    margin: 0 auto;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.carnet-header {
+    width: 100%;
+    height: 1.5cm;
+    background-image: url('https://i.postimg.cc/Vs3XK67H/Imagen1.jpg');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+}
+
+.carnet-logo {
+    width: 1.4cm;
+    height: 1.4cm;
+    position: absolute;
+    bottom: -0.7cm;
+    left: 50%;
+    transform: translateX(-50%);
+    border-radius: 50%;
+    border: 2px solid white;
+    background: white;
+    object-fit: cover;
+}
+
+.carnet-body {
+    margin-top: 0.9cm;
+    text-align: center;
+    width: 100%;
+    padding: 0 5px;
+}
+
+.carnet-name {
+    font-size: 9pt;
+    font-weight: 800;
+    margin-bottom: 2px;
+    line-height: 1.1;
+    text-transform: uppercase;
+}
+
+.carnet-grade {
+    font-size: 8pt;
+    color: var(--secondary);
+    margin-bottom: 3px;
+    font-weight: 600;
+}
+
+.carnet-qr {
+    display: flex;
+    justify-content: center;
+    margin: 5px 0;
+}
+
+/* Para forzar que QRCode.js dibuje el canvas pequeño */
+.carnet-qr canvas, .carnet-qr img {
+    width: 3cm !important;
+    height: 3cm !important;
+}
+
+.carnet-footer {
+    font-size: 7pt;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-top: auto;
+    margin-bottom: 5px;
+    text-align: center;
+    width: 100%;
+}
+
+@media print {
+    body * { visibility: hidden; }
+    
+    #printSection, #printSection * {
+        visibility: visible;
+    }
+    
+    #printSection {
+        position: absolute;
+        left: 0;
+        top: 0;
+        margin: 0;
+        padding: 0;
+        width: 100%;
+    }
+
+    .carnet-print-container {
+        border: none; /* Quitamos borde de pantalla para imprimir limpio */
+        box-shadow: none;
+        border-radius: 0; /* Sin bordes redondeados forzados si usan troqueladora */
+    }
+
+    @page {
+        size: 5.4cm 8.6cm; /* Tamaño exacto de un carnet vertical (CR80) */
+        margin: 0;
+    }
+}

@@ -99,13 +99,6 @@
             width: 90%;
             text-align: center;
         }
-
-        @media print {
-            body * { visibility: hidden; }
-            .modal-content, .modal-content * { visibility: visible; }
-            .modal-content { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none;}
-            .no-print { display: none; }
-        }
     </style>
 </head>
 <body>
@@ -136,13 +129,22 @@
     <!-- Modal para reimprimir -->
     <div id="printModal" class="modal">
         <div class="modal-content">
-            <h3 style="margin-bottom: 10px;">Carnet Estudiantil</h3>
-            <p><strong><span id="modalNombre"></span></strong> (<span id="modalGrado"></span>)</p>
-            <div id="modalQrcode" style="margin: 20px auto; display: flex; justify-content: center;"></div>
-            <p style="font-size: 0.8rem; color: #666;">Doc: <span id="modalDoc"></span></p>
+            <div id="printSection">
+                <div class="carnet-print-container">
+                    <div class="carnet-header">
+                        <img src="https://i.postimg.cc/9fJsDW4Z/escudo.png" alt="Escudo" class="carnet-logo">
+                    </div>
+                    <div class="carnet-body">
+                        <div class="carnet-name" id="modalNombre"></div>
+                        <div class="carnet-grade" id="modalGrado"></div>
+                        <div class="carnet-qr" id="modalQrcode"></div>
+                        <div class="carnet-footer">Doc: <span id="modalDoc"></span><br>IE LOS QUINDOS</div>
+                    </div>
+                </div>
+            </div>
             
             <div class="no-print" style="margin-top: 25px; display: flex; gap: 10px; justify-content: center;">
-                <button onclick="window.print()" class="btn" style="background: var(--primary); padding: 10px 20px; width: auto;">🖨️ Imprimir</button>
+                <button onclick="window.print()" class="btn" style="background: var(--primary); padding: 10px 20px; width: auto;">🖨️ Imprimir ajustado</button>
                 <button onclick="cerrarModal()" class="btn" style="background: #9CA3AF; padding: 10px 20px; width: auto;">Cerrar</button>
             </div>
         </div>

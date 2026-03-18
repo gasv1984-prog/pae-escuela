@@ -120,12 +120,24 @@
                 <button type="submit" class="btn">Generar y Guardar Carnet</button>
             </form>
 
-            <div id="carnetResult">
-                <h3>Carnet Generado</h3>
-                <p><strong><span id="resNombre"></span></strong> (<span id="resGrado"></span>)</p>
-                <div id="qrcode"></div>
-                <p style="font-size: 0.8rem; color: #666;">Doc: <span id="resDoc"></span></p>
-                <button onclick="window.print()" class="btn" style="margin-top: 15px; background: #10B981;">Imprimir Carnet</button>
+            <div id="carnetResult" style="display: none; margin-top: 30px;">
+                <h3 style="text-align: center; margin-bottom: 20px;">Carnet Generado</h3>
+                
+                <div id="printSection">
+                    <div class="carnet-print-container">
+                        <div class="carnet-header">
+                            <img src="https://i.postimg.cc/9fJsDW4Z/escudo.png" alt="Escudo" class="carnet-logo">
+                        </div>
+                        <div class="carnet-body">
+                            <div class="carnet-name" id="resNombre"></div>
+                            <div class="carnet-grade" id="resGrado"></div>
+                            <div class="carnet-qr" id="qrcode"></div>
+                            <div class="carnet-footer">Doc: <span id="resDoc"></span><br>IE LOS QUINDOS</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button onclick="window.print()" class="btn no-print" style="margin-top: 25px; background: #10B981;">🖨️ Imprimir ajustado</button>
             </div>
         </div>
     </div>
