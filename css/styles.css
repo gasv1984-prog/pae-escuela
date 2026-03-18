@@ -1,0 +1,178 @@
+:root {
+    --primary: #10B981;
+    --primary-dark: #059669;
+    --secondary: #3B82F6;
+    --bg-color: #F3F4F6;
+    --text-main: #1F2937;
+    --text-muted: #6B7280;
+    --card-bg: #FFFFFF;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.header h1 {
+    font-size: 2.5rem;
+    color: var(--primary-dark);
+    margin-bottom: 10px;
+}
+
+.header p {
+    color: var(--text-muted);
+}
+
+.main-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.menu-card {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 30px;
+    text-decoration: none;
+    color: var(--text-main);
+    transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.menu-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px rgba(0,0,0,0.1);
+}
+
+.card-icon {
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
+
+.menu-card h2 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+
+.primary-card h2 { color: var(--secondary); }
+.secondary-card h2 { color: var(--primary); }
+
+/* Registration Form styles */
+.form-group {
+    margin-bottom: 15px;
+    text-align: left;
+    width: 100%;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 600;
+}
+
+.form-group input, .form-group select {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #D1D5DB;
+    border-radius: 8px;
+    font-size: 1rem;
+    font-family: 'Inter', sans-serif;
+}
+
+.btn {
+    width: 100%;
+    padding: 15px;
+    background-color: var(--secondary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn:hover {
+    background-color: #2563EB;
+}
+
+/* Carnet Result */
+#carnetResult {
+    margin-top: 30px;
+    padding: 20px;
+    border: 2px dashed var(--secondary);
+    border-radius: 12px;
+    text-align: center;
+    background: #EFF6FF;
+    display: none; /* Hidden strictly over JS */
+}
+
+#qrcode {
+    margin: 20px auto;
+    display: flex;
+    justify-content: center;
+}
+
+.back-link {
+    display: inline-block;
+    margin-bottom: 20px;
+    color: var(--text-muted);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.back-link:hover {
+    color: var(--text-main);
+}
+
+/* Scanner Styles */
+#reader {
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.status-box {
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    font-weight: 600;
+    margin-top: 20px;
+}
+
+.status-success {
+    background-color: #D1FAE5;
+    color: #065F46;
+}
+
+.status-error {
+    background-color: #FEE2E2;
+    color: #991B1B;
+}

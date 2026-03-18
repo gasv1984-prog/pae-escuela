@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generar Carnets - PAE</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Librería para generar el QR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Volver al Menú</a>
+        
+        <div class="menu-card" style="align-items: flex-start;">
+            <h2 style="width: 100%; text-align: center; margin-bottom: 20px;">Crear Carnet Estudiantil</h2>
+            
+            <form id="registroForm" style="width: 100%;">
+                <div class="form-group">
+                    <label for="documento">Documento de Identidad (Código Único):</label>
+                    <input type="number" id="documento" required placeholder="Ej: 1009876543">
+                </div>
+
+                <div class="form-group">
+                    <label for="nombre">Nombre Completo:</label>
+                    <input type="text" id="nombre" required placeholder="Ej: Juan Pérez">
+                </div>
+
+                <div class="form-group">
+                    <label for="grado">Grado:</label>
+                    <select id="grado" required>
+                        <option value="">Seleccione el grado...</option>
+                        <option value="6A">Sexto A</option>
+                        <option value="6B">Sexto B</option>
+                        <option value="7A">Séptimo A</option>
+                        <option value="8A">Octavo A</option>
+                        <option value="9A">Noveno A</option>
+                        <option value="10A">Décimo A</option>
+                        <option value="11A">Once A</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn">Generar y Guardar Carnet</button>
+            </form>
+
+            <div id="carnetResult">
+                <h3>Carnet Generado</h3>
+                <p><strong><span id="resNombre"></span></strong> (<span id="resGrado"></span>)</p>
+                <div id="qrcode"></div>
+                <p style="font-size: 0.8rem; color: #666;">Doc: <span id="resDoc"></span></p>
+                <button onclick="window.print()" class="btn" style="margin-top: 15px; background: #10B981;">Imprimir Carnet</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz3SHQon_5TYorLV9MH8lXvNM4a0AR1b75b8_9YlmIMUmFJrM-6eVcI-a0piutEiSK/exec";
+
+        // Lógica para generar el QR cuando se envía el formulario
+        document.getElementById('registroForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            // 1. Obtener valores
+            const doc = document.getElementById('documento').value;
+            const nom = document.getElementById('nombre').value;
+            const grad = document.getElementById('grado').value;
+            const btnSubmit = e.target.querySelector('button[type="submit"]');
+
+            // 2. Cambiar estado del botón mientras guarda
+            const textoOriginalBtn = btnSubmit.innerText;
+            btnSubmit.innerText = "⏳ Guardando en Google Sheets...";
+            btnSubmit.disabled = true;
+
+            // 3. Enviar datos a Google Sheets
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Necesario para evitar bloqueos de CORS al enviar desde local
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'crear_estudiante',
+                        documento: doc,
+                        nombre: nom,
+                        grado: grad
+                    })
+                });
+                
+                // Si llega aquí, se envió correctamente (no-cors no nos deja ver la respuesta exacta, asumimos éxito si no hay error de red)
+                console.log("Estudiante guardado en Sheets.");
+
+                // 4. Mostrar datos en el carnet visual
+                document.getElementById('resNombre').innerText = nom;
+                document.getElementById('resGrado').innerText = grad;
+                document.getElementById('resDoc').innerText = doc;
+
+                // 5. Limpiar código QR anterior si existe
+                document.getElementById('qrcode').innerHTML = "";
+
+                // 6. Generar el nuevo código QR (Solo guarda el documento como identificador)
+                new QRCode(document.getElementById("qrcode"), {
+                    text: doc, // El QR ESTRICTAMENTE SOLO TIENE EL NÚMERO
+                    width: 150,
+                    height: 150,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
+
+                // 7. Mostrar la tarjeta generada
+                document.getElementById('carnetResult').style.display = 'block';
+                
+                // Limpiar formulario para el siguiente
+                e.target.reset();
+
+            } catch (error) {
+                console.error("Error al guardar:", error);
+                alert("Hubo un error al intentar guardar en Google Sheets. Revisa tu conexión.");
+            } finally {
+                // Restaurar el botón
+                btnSubmit.innerText = textoOriginalBtn;
+                btnSubmit.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

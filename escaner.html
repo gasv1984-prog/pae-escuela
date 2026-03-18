@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Escanear Almuerzo - PAE</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Librería para escanear el QR con la cámara -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Volver al Menú</a>
+        
+        <div class="menu-card" style="align-items: flex-start;">
+            <h2 style="width: 100%; text-align: center; margin-bottom: 20px;">Escaner de Comedor</h2>
+            <p style="text-align: center; margin-bottom: 20px; color: #666;">Apunta un carnet QR a la cámara para registrar el almuerzo.</p>
+            
+            <!-- Contenedor donde se verá la cámara -->
+            <div id="reader"></div>
+
+            <!-- Caja de mensajes de éxito/error -->
+            <div id="resultado" class="status-box" style="display: none; width: 100%;"></div>
+        </div>
+    </div>
+
+    <script>
+        // La URL que nos dio el usuario
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz3SHQon_5TYorLV9MH8lXvNM4a0AR1b75b8_9YlmIMUmFJrM-6eVcI-a0piutEiSK/exec";
+
+        // Base de datos en memoria (se llena al cargar la página)
+        let baseDeDatos = {};
+        
+        // Cargar los estudiantes desde Google Sheets al abrir la página
+        async function cargarBaseDeDatos() {
+            const cajaResultado = document.getElementById('resultado');
+            cajaResultado.style.display = 'block';
+            cajaResultado.className = 'status-box';
+            cajaResultado.innerHTML = '🔄 Descargando lista de estudiantes...';
+
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL);
+                if (!response.ok) throw new Error("Error en la descarga");
+                
+                const estudiantesArray = await response.json();
+                
+                // Convertir el array a un objeto para búsquedas instantáneas
+                estudiantesArray.forEach(est => {
+                    baseDeDatos[est.documento] = {
+                        nombre: est.nombre,
+                        grado: est.grado,
+                        almuerzosHoy: 0 // Iniciar contador en 0 por cada día que se abre
+                    };
+                });
+                
+                cajaResultado.className = 'status-box status-success';
+                cajaResultado.innerHTML = `✅ ${estudiantesArray.length} estudiantes cargados. ¡Listo para escanear!`;
+                setTimeout(() => cajaResultado.style.display = 'none', 3000);
+            } catch (error) {
+                cajaResultado.className = 'status-box status-error';
+                cajaResultado.innerHTML = `❌ Error al conectar con Google Sheets. Revisa tu internet o la URL.`;
+                console.error(error);
+            }
+        }
+
+        // Llamar la carga inicial
+        cargarBaseDeDatos();
+
+        // Función que se ejecuta cuando la cámara lee un código exitosamente
+        async function onScanSuccess(decodedText, decodedResult) {
+            const documentoEscaneado = decodedText.trim();
+            const cajaResultado = document.getElementById('resultado');
+            
+            cajaResultado.style.display = 'block';
+            
+            // Pausar inmediatamente el escáner para evitar escaneos dobles rápidos
+            html5QrcodeScanner.pause(true);
+
+            // 1. Buscar en la base de datos local
+            if (baseDeDatos[documentoEscaneado]) {
+                let estudiante = baseDeDatos[documentoEscaneado];
+                
+                // 2. Validar si ya comió hoy localmente
+                if(estudiante.almuerzosHoy > 0) {
+                    cajaResultado.className = 'status-box status-error';
+                    cajaResultado.innerHTML = `⚠️ <b>${estudiante.nombre}</b> (${estudiante.grado}) ya reclamó su almuerzo hoy.`;
+                    reanudarCamara();
+                } else {
+                    // Aprobado - Mostrar en pantalla de inmediato (Opticmist UI)
+                    estudiante.almuerzosHoy += 1; 
+                    cajaResultado.className = 'status-box status-success';
+                    cajaResultado.innerHTML = `✅ <b>Aprobado</b><br>${estudiante.nombre} (${estudiante.grado})`;
+
+                    // Enviar al Google Sheets en segundo plano
+                    enviarAsistenciaAGoogle(documentoEscaneado);
+                }
+            } else {
+                // Alumno no encontrado
+                cajaResultado.className = 'status-box status-error';
+                cajaResultado.innerHTML = `❌ Documento <b>${documentoEscaneado}</b> no registrado en el sistema.`;
+                reanudarCamara();
+            }
+        }
+
+        function reanudarCamara() {
+            setTimeout(() => {
+                const cajaResultado = document.getElementById('resultado');
+                cajaResultado.style.display = 'none';
+                html5QrcodeScanner.resume();
+            }, 2500); // 2.5 segundos de pausa para que lean el mensaje
+        }
+
+        async function enviarAsistenciaAGoogle(documento) {
+            try {
+                // Hacemos el POST sin esperar (fire and forget) para no bloquear la pantalla
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', // Fundamental para envíos simples a Apps Script desde HTML local
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'registrar_asistencia',
+                        documento: documento
+                    })
+                });
+                console.log("Asistencia enviada por debajo a Google.");
+            } catch (error) {
+                console.error("Error silencioso al enviar:", error);
+            } finally {
+                reanudarCamara();
+            }
+        }
+
+        function onScanFailure(error) {
+            // Se ignora silenciosamente los fotogramas sin QR
+        }
+
+        // Inicializar el escaner de la cámara
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { fps: 10, qrbox: {width: 250, height: 250} },
+            /* verbose= */ false);
+            
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+</body>
+</html>
