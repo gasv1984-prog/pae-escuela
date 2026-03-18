@@ -272,7 +272,7 @@ body {
         visibility: visible;
     }
     
-    #printSection, #bulkPrintSection {
+    #printSection {
         position: absolute;
         left: 0;
         top: 0;
@@ -285,19 +285,32 @@ body {
         display: none !important;
     }
 
+    /* Estilos para impresión masiva (tiled layout) */
+    body.printing-bulk #bulkPrintSection {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px; /* Espacio entre cada carnet */
+        justify-content: center; /* Centrar los carnets en la hoja */
+        align-content: flex-start;
+        padding: 1cm 0; /* Un poco de margen en la hoja */
+    }
+
     .bulk-card {
-        page-break-after: always;
         page-break-inside: avoid;
+        margin: 0; 
     }
 
     .carnet-print-container {
-        border: none; /* Quitamos borde de pantalla para imprimir limpio */
+        border: 1px dashed #999; /* Guía de corte visible al imprimir en A4 */
         box-shadow: none;
-        border-radius: 0; /* Sin bordes redondeados forzados si usan troqueladora */
+        border-radius: 0; 
     }
 
     @page {
-        size: 5.4cm 8.6cm; /* Tamaño exacto de un carnet vertical (CR80) */
-        margin: 0;
+        margin: 0.5cm; /* Márgenes estándar para impresión en A4 o Carta */
     }
 }
