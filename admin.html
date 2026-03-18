@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administrar Estudiantes - PAE</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        .search-container {
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--primary);
+            border-radius: 8px;
+            font-size: 1rem;
+            margin-bottom: 10px;
+        }
+
+        .student-list {
+            list-style: none;
+            width: 100%;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            background: white;
+        }
+
+        .student-item {
+            padding: 15px;
+            border-bottom: 1px solid #E5E7EB;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .student-item:last-child {
+            border-bottom: none;
+        }
+
+        .student-info {
+            text-align: left;
+        }
+
+        .student-info h4 {
+            margin: 0 0 5px 0;
+            color: var(--text-main);
+        }
+
+        .student-info p {
+            margin: 0;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        .print-btn {
+            background-color: var(--secondary);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .delete-btn {
+            background-color: #EF4444;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            margin-left: 5px;
+        }
+        
+        /* Modal for printing */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        @media print {
+            body * { visibility: hidden; }
+            .modal-content, .modal-content * { visibility: visible; }
+            .modal-content { position: absolute; left: 0; top: 0; width: 100%; padding: 0; border: none;}
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link no-print">← Volver al Menú</a>
+        
+        <div class="menu-card no-print" style="align-items: flex-start;">
+            <h2 style="width: 100%; text-align: center; margin-bottom: 20px;">Directorio de Estudiantes</h2>
+            
+            <div class="search-container">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar por documento o nombre...">
+                <div id="loader" style="text-align: center; color: var(--text-muted); padding: 10px;">
+                    Cargando estudiantes desde Google Sheets...
+                </div>
+            </div>
+
+            <ul class="student-list" id="studentList" style="display: none;">
+                <!-- Lista inyectada por JS -->
+            </ul>
+            
+            <p style="margin-top: 20px; font-size: 0.85rem; color: #666; text-align: center;">
+                💡 <b>Nota importante para Administradores:</b><br>
+                Para <b>agregar</b> decenas de estudiantes nuevos o <b>borrar</b> estudiantes definitivamente, por favor usa el archivo maestro de <a href="https://docs.google.com/spreadsheets/d/1d4vlFN1H8H9R2e2dW3a7BZUeTvHB6zXmvh4oypTLiSI/edit" target="_blank">Google Sheets</a> directamente. Esta pantalla es solo de consulta rápida y reimpresión de carnets perdidos.
+            </p>
+        </div>
+    </div>
+
+    <!-- Modal para reimprimir -->
+    <div id="printModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom: 10px;">Carnet Estudiantil</h3>
+            <p><strong><span id="modalNombre"></span></strong> (<span id="modalGrado"></span>)</p>
+            <div id="modalQrcode" style="margin: 20px auto; display: flex; justify-content: center;"></div>
+            <p style="font-size: 0.8rem; color: #666;">Doc: <span id="modalDoc"></span></p>
+            
+            <div class="no-print" style="margin-top: 25px; display: flex; gap: 10px; justify-content: center;">
+                <button onclick="window.print()" class="btn" style="background: var(--primary); padding: 10px 20px; width: auto;">🖨️ Imprimir</button>
+                <button onclick="cerrarModal()" class="btn" style="background: #9CA3AF; padding: 10px 20px; width: auto;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz3SHQon_5TYorLV9MH8lXvNM4a0AR1b75b8_9YlmIMUmFJrM-6eVcI-a0piutEiSK/exec";
+        let estudiantes = [];
+
+        async function cargarDatos() {
+            try {
+                const response = await fetch(GOOGLE_SCRIPT_URL);
+                if (!response.ok) throw new Error("Error de red");
+                estudiantes = await response.json();
+                
+                document.getElementById('loader').style.display = 'none';
+                document.getElementById('studentList').style.display = 'block';
+                mostrarEstudiantes(estudiantes);
+            } catch (error) {
+                document.getElementById('loader').innerHTML = '❌ Error al cargar. Verifica tu conexión a internet.';
+            }
+        }
+
+        function mostrarEstudiantes(lista) {
+            const listEl = document.getElementById('studentList');
+            listEl.innerHTML = '';
+            
+            // Limitar a los primeros 100 para no trabar el navegador si hay demasiados
+            const limit = Math.min(lista.length, 100);
+
+            if(lista.length === 0) {
+                listEl.innerHTML = '<li style="padding: 15px; text-align: center; color: #666;">No se encontraron resultados</li>';
+                return;
+            }
+
+            for(let i=0; i < limit; i++) {
+                const est = lista[i];
+                const li = document.createElement('li');
+                li.className = 'student-item';
+                li.innerHTML = `
+                    <div class="student-info">
+                        <h4>${est.nombre}</h4>
+                        <p>Doc: ${est.documento} • Grado: ${est.grado}</p>
+                    </div>
+                    <div>
+                        <button onclick="abrirModal('${est.documento}', '${est.nombre}', '${est.grado}')" class="print-btn">Reimprimir QR</button>
+                    </div>
+                `;
+                listEl.appendChild(li);
+            }
+        }
+
+        // Buscador
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtrados = estudiantes.filter(est => 
+                est.nombre.toLowerCase().includes(query) || 
+                est.documento.includes(query)
+            );
+            mostrarEstudiantes(filtrados);
+        });
+
+        // Funciones del Modal de Impresión
+        function abrirModal(doc, nom, grad) {
+            document.getElementById('modalNombre').innerText = nom;
+            document.getElementById('modalGrado').innerText = grad;
+            document.getElementById('modalDoc').innerText = doc;
+            
+            const qrContainer = document.getElementById('modalQrcode');
+            qrContainer.innerHTML = '';
+            
+            new QRCode(qrContainer, {
+                text: doc,
+                width: 150,
+                height: 150,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            document.getElementById('printModal').style.display = 'flex';
+        }
+
+        function cerrarModal() {
+            document.getElementById('printModal').style.display = 'none';
+        }
+
+        // Cargar al iniciar
+        cargarDatos();
+    </script>
+</body>
+</html>
