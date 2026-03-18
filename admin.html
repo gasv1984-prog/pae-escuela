@@ -185,10 +185,10 @@
                 li.innerHTML = `
                     <div class="student-info">
                         <h4>${est.nombre}</h4>
-                        <p>Doc: ${est.documento} • Grado: ${est.grado}</p>
+                        <p>Doc: ${est.documento} • Grado: ${est.grado} (${est.tipo || 'Titular'})</p>
                     </div>
                     <div>
-                        <button onclick="abrirModal('${est.documento}', '${est.nombre}', '${est.grado}')" class="print-btn">Reimprimir QR</button>
+                        <button onclick="abrirModal('${est.documento}', '${est.nombre}', '${est.grado}', '${est.tipo || 'Titular'}')" class="print-btn">Reimprimir QR</button>
                     </div>
                 `;
                 listEl.appendChild(li);
@@ -206,9 +206,9 @@
         });
 
         // Funciones del Modal de Impresión
-        function abrirModal(doc, nom, grad) {
+        function abrirModal(doc, nom, grad, tip) {
             document.getElementById('modalNombre').innerText = nom;
-            document.getElementById('modalGrado').innerText = grad;
+            document.getElementById('modalGrado').innerText = grad + " (" + tip + ")";
             document.getElementById('modalDoc').innerText = doc;
             
             const qrContainer = document.getElementById('modalQrcode');

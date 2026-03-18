@@ -108,6 +108,16 @@
                         <option value="11-D">11-D</option>
                     </select>
                 </div>
+
+                <div class="form-group">
+                    <label for="tipo">Tipo de Beneficiario:</label>
+                    <select id="tipo" required>
+                        <option value="Titular">Titular</option>
+                        <option value="Suplente">Suplente</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="btn">Generar y Guardar Carnet</button>
             </form>
 
             <div id="carnetResult">
@@ -131,6 +141,7 @@
             const doc = document.getElementById('documento').value;
             const nom = document.getElementById('nombre').value;
             const grad = document.getElementById('grado').value;
+            const tip = document.getElementById('tipo').value;
             const btnSubmit = e.target.querySelector('button[type="submit"]');
 
             // 2. Cambiar estado del botón mientras guarda
@@ -150,7 +161,8 @@
                         action: 'crear_estudiante',
                         documento: doc,
                         nombre: nom,
-                        grado: grad
+                        grado: grad,
+                        tipo: tip
                     })
                 });
                 
@@ -159,7 +171,7 @@
 
                 // 4. Mostrar datos en el carnet visual
                 document.getElementById('resNombre').innerText = nom;
-                document.getElementById('resGrado').innerText = grad;
+                document.getElementById('resGrado').innerText = grad + " (" + tip + ")";
                 document.getElementById('resDoc').innerText = doc;
 
                 // 5. Limpiar código QR anterior si existe
