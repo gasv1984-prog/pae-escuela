@@ -291,7 +291,7 @@ body {
         left: 0;
         top: 0;
         width: 100%;
-        display: flex;
+        display: flex !important; /* Fuerza a ignora el display: none inline */
         flex-wrap: wrap;
         gap: 10px; /* Espacio entre cada carnet */
         justify-content: center; /* Centrar los carnets en la hoja */
