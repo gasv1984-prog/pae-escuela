@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10B981">
     <title>Estadísticas PAE</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -120,8 +122,9 @@
 
         <div id="dashboard-content" style="display: none;">
             <div class="filter-controls">
-                <label for="fechaFiltro"><b>Selecciona un día para ver detalle: </b></label>
-                <input type="date" id="fechaFiltro">
+                <label for="fechaFiltro" style="margin-right: 10px;"><b>Día de reporte: </b></label>
+                <input type="date" id="fechaFiltro" style="margin-right: 10px;">
+                <button onclick="descargarCSV()" class="btn" style="width: auto; padding: 10px 20px; font-size: 0.95rem; display: inline-block;">📥 Descargar en Excel (CSV)</button>
             </div>
 
             <div class="dashboard-grid">
@@ -266,6 +269,59 @@
             }
         }
 
+        function descargarCSV() {
+            const fechaVal = document.getElementById('fechaFiltro').value;
+            if(!fechaVal) return;
+            
+            let csvData = "Documento,Nombre,Grado,Tipo,Asistio\n";
+            
+            const partesFecha = fechaVal.split('-');
+            const year = parseInt(partesFecha[0]);
+            const month = parseInt(partesFecha[1]) - 1;
+            const day = parseInt(partesFecha[2]);
+            
+            const asistieronHoy = new Set();
+            asistenciaBase.forEach(reg => {
+                if(reg.fechaObj && !isNaN(reg.fechaObj.getTime())) {
+                    if (reg.fechaObj.getFullYear() === year &&
+                        reg.fechaObj.getMonth() === month &&
+                        reg.fechaObj.getDate() === day) {
+                        asistieronHoy.add(reg.documento);
+                    }
+                }
+            });
+
+            // Ordenar por grado, luego por nombre
+            const copiaEsts = [...estudiantesBase];
+            copiaEsts.sort((a,b) => {
+                if(a.grado === b.grado) return a.nombre.localeCompare(b.nombre);
+                return (a.grado || "").localeCompare(b.grado || "");
+            });
+
+            copiaEsts.forEach(est => {
+                const asistio = asistieronHoy.has(est.documento) ? "SI" : "NO";
+                const nomEscapado = est.nombre ? est.nombre.replace(/"/g, '""') : "";
+                const row = [
+                    est.documento, 
+                    `"${nomEscapado}"`, 
+                    `"${est.grado || ''}"`, 
+                    est.tipo || "Titular", 
+                    asistio
+                ].join(",");
+                csvData += row + "\n";
+            });
+
+            // Agrega BOM para que Excel detecte utf-8
+            const blob = new Blob(["\uFEFF"+csvData], { type: 'text/csv;charset=utf-8;' }); 
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Reporte_PAE_${fechaVal}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         function renderizarGraficoSemanal() {
             // Contar registros por día de la semana
             // 0 = Dom, 1 = Lun, 2 = Mar...
@@ -314,6 +370,13 @@
 
         // Cargar todo al iniciar
         cargarDatos();
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
     </script>
 </body>
 </html>

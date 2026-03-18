@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10B981">
     <title>Escanear Almuerzo - PAE</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -37,25 +39,46 @@
             const cajaResultado = document.getElementById('resultado');
             cajaResultado.style.display = 'block';
             cajaResultado.className = 'status-box';
-            cajaResultado.innerHTML = '🔄 Descargando lista de estudiantes...';
+            cajaResultado.innerHTML = '🔄 Descargando lista y registros del día...';
 
             try {
-                const response = await fetch(GOOGLE_SCRIPT_URL);
-                if (!response.ok) throw new Error("Error en la descarga");
+                // Descargamos estudiantes y asistencia simultáneamente
+                const [resEst, resAsist] = await Promise.all([
+                    fetch(GOOGLE_SCRIPT_URL),
+                    fetch(GOOGLE_SCRIPT_URL + "?data=asistencia")
+                ]);
+
+                if (!resEst.ok || !resAsist.ok) throw new Error("Error en la descarga");
                 
-                const estudiantesArray = await response.json();
+                const estudiantesArray = await resEst.json();
+                const asistenciaArray = await resAsist.json();
+
+                // Identificar quiénes ya almorzaron hoy
+                const hoy = new Date();
+                const asistieronHoy = new Set();
+                
+                asistenciaArray.forEach(reg => {
+                    const d = new Date(reg.fecha);
+                    if(!isNaN(d.getTime())) {
+                        if(d.getFullYear() === hoy.getFullYear() && 
+                           d.getMonth() === hoy.getMonth() && 
+                           d.getDate() === hoy.getDate()) {
+                            asistieronHoy.add(reg.documento);
+                        }
+                    }
+                });
                 
                 // Convertir el array a un objeto para búsquedas instantáneas
                 estudiantesArray.forEach(est => {
                     baseDeDatos[est.documento] = {
                         nombre: est.nombre,
                         grado: est.grado,
-                        almuerzosHoy: 0 // Iniciar contador en 0 por cada día que se abre
+                        almuerzosHoy: asistieronHoy.has(est.documento) ? 1 : 0
                     };
                 });
                 
                 cajaResultado.className = 'status-box status-success';
-                cajaResultado.innerHTML = `✅ ${estudiantesArray.length} estudiantes cargados. ¡Listo para escanear!`;
+                cajaResultado.innerHTML = `✅ ${estudiantesArray.length} estudiantes listos. Bloqueo antifraude ACTIVADO.`;
                 setTimeout(() => cajaResultado.style.display = 'none', 3000);
             } catch (error) {
                 cajaResultado.className = 'status-box status-error';
@@ -66,6 +89,42 @@
 
         // Llamar la carga inicial
         cargarBaseDeDatos();
+
+        // ===== SÍNTESIS DE AUDIO (SIN ARCHIVOS MP3) =====
+        function playSuccessSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+                oscillator.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1); // A6
+                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch(e) {}
+        }
+
+        function playErrorSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sawtooth';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.3);
+            } catch(e) {}
+        }
 
         // Función que se ejecuta cuando la cámara lee un código exitosamente
         async function onScanSuccess(decodedText, decodedResult) {
@@ -83,12 +142,14 @@
                 
                 // 2. Validar si ya comió hoy localmente
                 if(estudiante.almuerzosHoy > 0) {
+                    playErrorSound();
                     cajaResultado.className = 'status-box status-error';
-                    cajaResultado.innerHTML = `⚠️ <b>${estudiante.nombre}</b> (${estudiante.grado}) ya reclamó su almuerzo hoy.`;
-                    reanudarCamara();
+                    cajaResultado.innerHTML = `🚫 <b>FRAUDE DETECTADO</b><br>${estudiante.nombre} (${estudiante.grado}) ya reclamó su almuerzo hoy.`;
+                    reanudarCamara(3500); // Pausa más larga por intento de doble ración
                 } else {
                     // Aprobado - Mostrar en pantalla de inmediato (Opticmist UI)
                     estudiante.almuerzosHoy += 1; 
+                    playSuccessSound();
                     cajaResultado.className = 'status-box status-success';
                     cajaResultado.innerHTML = `✅ <b>Aprobado</b><br>${estudiante.nombre} (${estudiante.grado})`;
 
@@ -97,18 +158,19 @@
                 }
             } else {
                 // Alumno no encontrado
+                playErrorSound();
                 cajaResultado.className = 'status-box status-error';
                 cajaResultado.innerHTML = `❌ Documento <b>${documentoEscaneado}</b> no registrado en el sistema.`;
-                reanudarCamara();
+                reanudarCamara(2500);
             }
         }
 
-        function reanudarCamara() {
+        function reanudarCamara(delayMs = 2000) {
             setTimeout(() => {
                 const cajaResultado = document.getElementById('resultado');
                 cajaResultado.style.display = 'none';
                 html5QrcodeScanner.resume();
-            }, 2500); // 2.5 segundos de pausa para que lean el mensaje
+            }, delayMs); 
         }
 
         async function enviarAsistenciaAGoogle(documento) {
@@ -144,6 +206,13 @@
             /* verbose= */ false);
             
         html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
     </script>
 </body>
 </html>

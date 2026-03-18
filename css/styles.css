@@ -286,14 +286,19 @@ body {
     }
 
     /* Estilos para impresión masiva (tiled layout) */
+    body.printing-bulk {
+        height: auto;
+        overflow: visible;
+    }
+
     body.printing-bulk #bulkPrintSection {
-        position: absolute;
-        left: 0;
-        top: 0;
+        position: relative !important;
+        left: auto;
+        top: auto;
         width: 100%;
         display: flex !important; /* Fuerza a ignora el display: none inline */
         flex-wrap: wrap;
-        gap: 10px; /* Espacio entre cada carnet */
+        gap: 15px; /* Espacio entre cada carnet */
         justify-content: center; /* Centrar los carnets en la hoja */
         align-content: flex-start;
         padding: 1cm 0; /* Un poco de margen en la hoja */

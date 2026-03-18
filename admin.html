@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10B981">
     <title>Administrar Estudiantes - PAE</title>
     <link rel="stylesheet" href="css/styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -151,6 +153,36 @@
         </div>
     </div>
 
+    <!-- Modal para Editar Estudiante -->
+    <div id="editModal" class="modal">
+        <div class="modal-content" style="max-width: 400px; padding: 30px;">
+            <span class="close-btn" onclick="cerrarEditModal()">&times;</span>
+            <h2 style="text-align: center; margin-bottom: 20px;">Editar Estudiante</h2>
+            
+            <div style="margin-bottom: 15px;">
+                <label>Documento (No editable)</label><br>
+                <input type="text" id="editDoc" disabled style="width: 100%; padding: 8px; background: #f3f4f6; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Nombre Completo</label><br>
+                <input type="text" id="editNombre" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>Grado/Grupo</label><br>
+                <input type="text" id="editGrado" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label>Tipo (Titular/Suplente)</label><br>
+                <select id="editTipo" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;">
+                    <option value="Titular">Titular</option>
+                    <option value="Suplente">Suplente</option>
+                </select>
+            </div>
+            
+            <button onclick="guardarEdicion()" id="btnGuardarEdicion" class="btn" style="width: 100%;">💾 Guardar Cambios</button>
+        </div>
+    </div>
+
     <!-- Contenedor oculto para imprimir por lote -->
     <div id="bulkPrintSection" style="display: none;"></div>
 
@@ -197,7 +229,8 @@
                         <p>Doc: ${est.documento} • Grado: ${est.grado} (${est.tipo || 'Titular'})</p>
                     </div>
                     <div>
-                        <button onclick="abrirModal('${est.documento}', '${est.nombre}', '${est.grado}', '${est.tipo || 'Titular'}')" class="print-btn">Ver Carnet</button>
+                        <button onclick="abrirModalEdicion('${est.documento}', '${est.nombre.replace(/'/g, "\\'")}', '${est.grado}', '${est.tipo || 'Titular'}')" class="btn" style="padding: 5px 10px; background:#F59E0B; font-size: 0.9em; margin-right:5px; margin-bottom: 5px; width:auto;">✏️ Editar</button>
+                        <button onclick="abrirModal('${est.documento}', '${est.nombre.replace(/'/g, "\\'")}', '${est.grado}', '${est.tipo || 'Titular'}')" class="print-btn" style="padding: 5px 10px; font-size: 0.9em; width:auto;">📄 Carnet</button>
                     </div>
                 `;
                 listEl.appendChild(li);
@@ -246,6 +279,75 @@
 
         function cerrarModal() {
             document.getElementById('printModal').style.display = 'none';
+        }
+
+        // Funciones del Modal de Edición
+        function abrirModalEdicion(doc, nom, grad, tip) {
+            document.getElementById('editDoc').value = doc;
+            document.getElementById('editNombre').value = nom;
+            document.getElementById('editGrado').value = grad;
+            document.getElementById('editTipo').value = tip;
+            document.getElementById('editModal').style.display = 'flex';
+        }
+
+        function cerrarEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        async function guardarEdicion() {
+            const doc = document.getElementById('editDoc').value;
+            const nom = document.getElementById('editNombre').value;
+            const grad = document.getElementById('editGrado').value;
+            const tip = document.getElementById('editTipo').value;
+            
+            if(!nom || !grad) return alert("Nombre y Grado son obligatorios.");
+            
+            const btn = document.getElementById('btnGuardarEdicion');
+            btn.innerText = "⏳ Guardando en Sheets...";
+            btn.disabled = true;
+            
+            try {
+                // Hacemos el request con no-cors para evitar problemas
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'editar_estudiante',
+                        documento: doc,
+                        nombre: nom,
+                        grado: grad,
+                        tipo: tip
+                    })
+                });
+                
+                // Darle 1 segundo y asumir éxito, actualizar UI localmente 
+                setTimeout(() => {
+                    const indexDb = estudiantes.findIndex(e => e.documento === doc);
+                    if(indexDb !== -1) {
+                        estudiantes[indexDb].nombre = nom;
+                        estudiantes[indexDb].grado = grad;
+                        estudiantes[indexDb].tipo = tip;
+                    }
+                    
+                    const indexFilter = estudiantesFiltrados.findIndex(e => e.documento === doc);
+                    if(indexFilter !== -1) {
+                        estudiantesFiltrados[indexFilter].nombre = nom;
+                        estudiantesFiltrados[indexFilter].grado = grad;
+                        estudiantesFiltrados[indexFilter].tipo = tip;
+                    }
+                    
+                    mostrarEstudiantes(estudiantesFiltrados);
+                    cerrarEditModal();
+                    
+                    btn.innerText = "💾 Guardar Cambios";
+                    btn.disabled = false;
+                }, 1000);
+            } catch (error) {
+                alert("❌ Fallo general.");
+                btn.innerText = "💾 Guardar Cambios";
+                btn.disabled = false;
+            }
         }
 
         // Función para Imprimir por Lotes
@@ -352,6 +454,13 @@
 
         // Cargar al iniciar
         cargarDatos();
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
     </script>
 </body>
 </html>
