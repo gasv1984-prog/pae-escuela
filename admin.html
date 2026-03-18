@@ -108,11 +108,12 @@
         <div class="menu-card no-print" style="align-items: flex-start;">
             <h2 style="width: 100%; text-align: center; margin-bottom: 20px;">Directorio de Estudiantes</h2>
             
-            <div class="search-container">
-                <input type="text" id="searchInput" class="search-input" placeholder="🔍 Buscar por documento o nombre...">
-                <div id="loader" style="text-align: center; color: var(--text-muted); padding: 10px;">
-                    Cargando estudiantes desde Google Sheets...
-                </div>
+            <div class="search-container" style="display: flex; gap: 10px; align-items: center; margin-bottom: 20px;">
+                <input type="text" id="searchInput" class="search-input" placeholder="🔍  Buscar por grado (Ej: 11-A) o nombre..." style="margin-bottom: 0;">
+                <button onclick="imprimirLote()" id="btnImprimirLote" class="btn" style="width: auto; padding: 12px 15px; font-size: 0.9rem; background: var(--primary);" disabled>🖨️ Imprimir Filtrados</button>
+            </div>
+            <div id="loader" style="text-align: center; color: var(--text-muted); padding: 10px; width: 100%;">
+                Cargando estudiantes desde Google Sheets...
             </div>
 
             <ul class="student-list" id="studentList" style="display: none;">
@@ -126,7 +127,7 @@
         </div>
     </div>
 
-    <!-- Modal para reimprimir -->
+    <!-- Modal para reimprimir individual -->
     <div id="printModal" class="modal">
         <div class="modal-content">
             <div id="printSection">
@@ -150,19 +151,25 @@
         </div>
     </div>
 
+    <!-- Contenedor oculto para imprimir por lote -->
+    <div id="bulkPrintSection" style="display: none;"></div>
+
     <script>
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz3SHQon_5TYorLV9MH8lXvNM4a0AR1b75b8_9YlmIMUmFJrM-6eVcI-a0piutEiSK/exec";
         let estudiantes = [];
+        let estudiantesFiltrados = [];
 
         async function cargarDatos() {
             try {
                 const response = await fetch(GOOGLE_SCRIPT_URL);
                 if (!response.ok) throw new Error("Error de red");
                 estudiantes = await response.json();
+                estudiantesFiltrados = estudiantes;
                 
                 document.getElementById('loader').style.display = 'none';
                 document.getElementById('studentList').style.display = 'block';
-                mostrarEstudiantes(estudiantes);
+                document.getElementById('btnImprimirLote').disabled = false;
+                mostrarEstudiantes(estudiantesFiltrados);
             } catch (error) {
                 document.getElementById('loader').innerHTML = '❌ Error al cargar. Verifica tu conexión a internet.';
             }
@@ -172,7 +179,7 @@
             const listEl = document.getElementById('studentList');
             listEl.innerHTML = '';
             
-            // Limitar a los primeros 100 para no trabar el navegador si hay demasiados
+            // Limitar a los primeros 100 para no trabar el DOM en la visualización
             const limit = Math.min(lista.length, 100);
 
             if(lista.length === 0) {
@@ -190,24 +197,33 @@
                         <p>Doc: ${est.documento} • Grado: ${est.grado} (${est.tipo || 'Titular'})</p>
                     </div>
                     <div>
-                        <button onclick="abrirModal('${est.documento}', '${est.nombre}', '${est.grado}', '${est.tipo || 'Titular'}')" class="print-btn">Reimprimir QR</button>
+                        <button onclick="abrirModal('${est.documento}', '${est.nombre}', '${est.grado}', '${est.tipo || 'Titular'}')" class="print-btn">Ver Carnet</button>
                     </div>
                 `;
                 listEl.appendChild(li);
             }
+            
+            if (lista.length > 100) {
+                const li = document.createElement('li');
+                li.innerHTML = `<div style="padding: 15px; text-align: center; color: #666; font-size: 0.9em;">Mostrando 100 de ${lista.length} resultados. Escribe más arriba para buscar...</div>`;
+                listEl.appendChild(li);
+            }
+            
+            document.getElementById('btnImprimirLote').innerText = `🖨️ Imprimir Grupo (${lista.length})`;
         }
 
         // Buscador
         document.getElementById('searchInput').addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase();
-            const filtrados = estudiantes.filter(est => 
+            estudiantesFiltrados = estudiantes.filter(est => 
                 est.nombre.toLowerCase().includes(query) || 
-                est.documento.includes(query)
+                est.documento.includes(query) ||
+                (est.grado && est.grado.toLowerCase().includes(query))
             );
-            mostrarEstudiantes(filtrados);
+            mostrarEstudiantes(estudiantesFiltrados);
         });
 
-        // Funciones del Modal de Impresión
+        // Funciones del Modal de Impresión Individual
         function abrirModal(doc, nom, grad, tip) {
             document.getElementById('modalNombre').innerText = nom;
             document.getElementById('modalGrado').innerText = grad + " (" + tip + ")";
@@ -230,6 +246,88 @@
 
         function cerrarModal() {
             document.getElementById('printModal').style.display = 'none';
+        }
+
+        // Función para Imprimir por Lotes
+        function imprimirLote() {
+            if (estudiantesFiltrados.length === 0) return;
+            
+            if (estudiantesFiltrados.length > 500) {
+                if (!confirm(`Estás a punto de generar ${estudiantesFiltrados.length} carnets para imprimir. Esto puede hacer que tu navegador se congele unos segundos. ¿Deseas continuar?`)) {
+                    return;
+                }
+            }
+            
+            const bulkSection = document.getElementById('bulkPrintSection');
+            bulkSection.innerHTML = ''; // Limpiar anterior
+            
+            const btn = document.getElementById('btnImprimirLote');
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ Generando códigos QR...";
+            btn.disabled = true;
+
+            // Damos un pequeño delay para que el navegador cambie el texto del botón antes de congelarse generando QRs
+            setTimeout(() => {
+                estudiantesFiltrados.forEach(est => {
+                    // Crear el HTML de la tarjeta
+                    const card = document.createElement('div');
+                    card.className = 'carnet-print-container bulk-card';
+                    
+                    const header = document.createElement('div');
+                    header.className = 'carnet-header';
+                    header.innerHTML = '<img src="https://i.postimg.cc/9fJsDW4Z/escudo.png" class="carnet-logo">';
+                    
+                    const body = document.createElement('div');
+                    body.className = 'carnet-body';
+                    
+                    const name = document.createElement('div');
+                    name.className = 'carnet-name';
+                    name.innerText = est.nombre;
+                    
+                    const grade = document.createElement('div');
+                    grade.className = 'carnet-grade';
+                    grade.innerText = est.grado + " (" + (est.tipo || 'Titular') + ")";
+                    
+                    const qr = document.createElement('div');
+                    qr.className = 'carnet-qr';
+                    
+                    const footer = document.createElement('div');
+                    footer.className = 'carnet-footer';
+                    footer.innerHTML = `Doc: ${est.documento}<br>IE LOS QUINDOS`;
+                    
+                    body.appendChild(name);
+                    body.appendChild(grade);
+                    body.appendChild(qr);
+                    body.appendChild(footer);
+                    
+                    card.appendChild(header);
+                    card.appendChild(body);
+                    bulkSection.appendChild(card);
+                    
+                    // Generar su QR
+                    new QRCode(qr, {
+                        text: est.documento,
+                        width: 150,
+                        height: 150,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                });
+                
+                // Imprimir y restaurar
+                btn.innerText = "Abriendo ventana de impresión...";
+                setTimeout(() => {
+                    // Agrego clase temporal al body para ocultar el resto durante printLote
+                    document.body.classList.add('printing-bulk');
+                    window.print();
+                    document.body.classList.remove('printing-bulk');
+                    
+                    bulkSection.innerHTML = '';
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }, 500);
+            }, 50);
         }
 
         // Cargar al iniciar

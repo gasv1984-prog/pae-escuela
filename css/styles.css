@@ -267,17 +267,27 @@ body {
 @media print {
     body * { visibility: hidden; }
     
-    #printSection, #printSection * {
+    #printSection, #printSection *,
+    #bulkPrintSection, #bulkPrintSection * {
         visibility: visible;
     }
     
-    #printSection {
+    #printSection, #bulkPrintSection {
         position: absolute;
         left: 0;
         top: 0;
         margin: 0;
         padding: 0;
         width: 100%;
+    }
+
+    body.printing-bulk #printSection {
+        display: none !important;
+    }
+
+    .bulk-card {
+        page-break-after: always;
+        page-break-inside: avoid;
     }
 
     .carnet-print-container {
