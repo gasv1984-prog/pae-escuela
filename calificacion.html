@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#10B981">
+    <title>Calificar Comida - PAE</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Librería para escanear el QR con la cámara -->
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        .rating-container {
+            display: flex;
+            justify-content: space-between;
+            margin: 20px 0;
+        }
+        .rating-btn {
+            font-size: 2rem;
+            background: none;
+            border: 2px solid transparent;
+            cursor: pointer;
+            border-radius: 50%;
+            transition: transform 0.2s, background-color 0.2s;
+            padding: 10px;
+        }
+        .rating-btn:hover, .rating-btn.selected {
+            transform: scale(1.2);
+            background-color: #f0fdf4;
+            border-color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="index.html" class="back-link">← Volver al Menú</a>
+        
+        <div class="menu-card" style="align-items: flex-start;">
+            <h2 style="width: 100%; text-align: center; margin-bottom: 20px;">Calificar Comida</h2>
+            
+            <div id="step-scan" style="width: 100%;">
+                <p style="text-align: center; margin-bottom: 20px; color: #666;">Escanea tu carnet para identificarte y dejar una calificación.</p>
+                <div id="reader"></div>
+            </div>
+
+            <div id="step-form" style="display: none; width: 100%;">
+                <p style="text-align: center; color: var(--primary); font-weight: bold; margin-bottom: 15px;" id="student-name">¡Hola!</p>
+                <p style="text-align: center; margin-bottom: 10px;">¿Qué tal te pareció el almuerzo de hoy?</p>
+                
+                <div class="rating-container" id="rating-buttons">
+                    <button type="button" class="rating-btn" data-val="1">😡</button>
+                    <button type="button" class="rating-btn" data-val="2">🙁</button>
+                    <button type="button" class="rating-btn" data-val="3">😐</button>
+                    <button type="button" class="rating-btn" data-val="4">🙂</button>
+                    <button type="button" class="rating-btn" data-val="5">😍</button>
+                </div>
+
+                <div class="form-group">
+                    <label for="observacion">Observación, queja o reclamo (Opcional):</label>
+                    <textarea id="observacion" rows="3" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: 'Inter', sans-serif;" placeholder="Escribe aquí tus comentarios..."></textarea>
+                </div>
+
+                <button id="btn-enviar" class="btn" onclick="enviarCalificacion()">Enviar Calificación</button>
+                <button class="btn btn-secondary" style="margin-top: 10px; width: 100%;" onclick="reiniciarEscaner()">Cancelar</button>
+            </div>
+
+            <div id="resultado" class="status-box" style="display: none; width: 100%; margin-top: 20px;"></div>
+        </div>
+    </div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz3SHQon_5TYorLV9MH8lXvNM4a0AR1b75b8_9YlmIMUmFJrM-6eVcI-a0piutEiSK/exec";
+        
+        // Base de datos en memoria para saludar al usuario
+        let baseDeDatos = {};
+        
+        async function cargarBaseDeDatos() {
+            try {
+                const res = await fetch(GOOGLE_SCRIPT_URL);
+                if (res.ok) {
+                    const estudiantesArray = await res.json();
+                    estudiantesArray.forEach(est => {
+                        baseDeDatos[est.documento] = est.nombre;
+                    });
+                }
+            } catch (error) {
+                console.error("No se pudo cargar la base de datos.");
+            }
+        }
+        cargarBaseDeDatos();
+
+        function playSuccessSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(1760, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                oscillator.start(audioCtx.currentTime);
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } catch(e) {}
+        }
+
+        let documentoActual = null;
+        let calificacionSeleccionada = null;
+        let html5QrcodeScanner = null;
+
+        // Lógica de calificación visual
+        document.querySelectorAll('.rating-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('selected'));
+                this.classList.add('selected');
+                calificacionSeleccionada = this.getAttribute('data-val');
+            });
+        });
+
+        async function onScanSuccess(decodedText) {
+            documentoActual = decodedText.trim();
+            playSuccessSound();
+            
+            // Pausar y ocultar cámara
+            html5QrcodeScanner.pause(true);
+            document.getElementById('step-scan').style.display = 'none';
+            document.getElementById('resultado').style.display = 'none';
+
+            // Mostrar el formulario
+            const nombreEstudiante = baseDeDatos[documentoActual] || 'Estudiante (' + documentoActual + ')';
+            document.getElementById('student-name').textContent = '¡Hola ' + nombreEstudiante + '!';
+            
+            // Reset fields
+            document.querySelectorAll('.rating-btn').forEach(b => b.classList.remove('selected'));
+            calificacionSeleccionada = null;
+            document.getElementById('observacion').value = '';
+            
+            document.getElementById('step-form').style.display = 'block';
+        }
+
+        function onScanFailure(error) {
+            // Ignorar frames sin QR
+        }
+
+        async function enviarCalificacion() {
+            if (!calificacionSeleccionada) {
+                alert("Por favor selecciona una calificación usando los emojis.");
+                return;
+            }
+
+            const observacion = document.getElementById('observacion').value.trim();
+            const btnEnviar = document.getElementById('btn-enviar');
+            btnEnviar.disabled = true;
+            btnEnviar.textContent = "Enviando...";
+
+            try {
+                // Post asincrono y mostramos mensaje de éxito
+                fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'calificar_comida',
+                        documento: documentoActual,
+                        calificacion: parseInt(calificacionSeleccionada),
+                        observacion: observacion
+                    })
+                });
+
+                document.getElementById('step-form').style.display = 'none';
+                
+                const cajaResultado = document.getElementById('resultado');
+                cajaResultado.style.display = 'block';
+                cajaResultado.className = 'status-box status-success';
+                cajaResultado.innerHTML = `✅ <b>¡Gracias por tu opinión!</b><br>Tus comentarios nos ayudan a mejorar.`;
+
+                setTimeout(() => {
+                    reiniciarEscaner();
+                }, 3000);
+
+            } catch (error) {
+                console.error("Error al enviar calificación:", error);
+            } finally {
+                btnEnviar.disabled = false;
+                btnEnviar.textContent = "Enviar Calificación";
+            }
+        }
+
+        function reiniciarEscaner() {
+            document.getElementById('step-form').style.display = 'none';
+            document.getElementById('resultado').style.display = 'none';
+            document.getElementById('step-scan').style.display = 'block';
+            documentoActual = null;
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.resume();
+            }
+        }
+
+        window.onload = () => {
+            html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { fps: 10, qrbox: {width: 250, height: 250} },
+                false);
+            html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+        };
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js');
+            });
+        }
+    </script>
+</body>
+</html>
