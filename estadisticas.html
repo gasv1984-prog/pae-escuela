@@ -67,9 +67,23 @@
             color: var(--primary);
             margin: 0;
         }
-        .missing-list {
+        .missing-list, .obs-list {
             text-align: left;
             margin-top: 15px;
+        }
+        .obs-list {
+            max-height: 250px;
+            overflow-y: auto;
+            border-top: 1px solid #eee;
+            padding-top: 10px;
+        }
+        .obs-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+            border-left: 4px solid #f39c12;
         }
         .missing-group {
             margin-bottom: 15px;
@@ -93,9 +107,18 @@
         .filter-controls {
             margin-bottom: 20px;
             text-align: center;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
         }
         .filter-controls input[type="date"] {
-            padding: 10px;
+            padding: 8px;
             border: 2px solid var(--primary);
             border-radius: 8px;
             font-family: 'Inter', sans-serif;
@@ -113,7 +136,7 @@
         <div class="header-stats">
             <img src="https://i.postimg.cc/9fJsDW4Z/escudo.png" alt="Escudo" class="logo">
             <h2>Estadísticas y Reportes PAE</h2>
-            <p>Monitoreo diario de entregas de almuerzos</p>
+            <p>Monitoreo de entregas y calificaciones</p>
         </div>
 
         <div id="loader" style="text-align: center; padding: 40px; font-weight: bold; color: var(--primary);">
@@ -122,27 +145,48 @@
 
         <div id="dashboard-content" style="display: none;">
             <div class="filter-controls">
-                <label for="fechaFiltro" style="margin-right: 10px;"><b>Día de reporte: </b></label>
-                <input type="date" id="fechaFiltro" style="margin-right: 10px;">
-                <button onclick="descargarCSV()" class="btn" style="width: auto; padding: 10px 20px; font-size: 0.95rem; display: inline-block;">📥 Descargar en Excel (CSV)</button>
+                <div>
+                    <label for="fechaInicioFiltro" style="margin-right: 5px;"><b>Desde:</b></label>
+                    <input type="date" id="fechaInicioFiltro">
+                </div>
+                <div>
+                    <label for="fechaFinFiltro" style="margin-right: 5px;"><b>Hasta:</b></label>
+                    <input type="date" id="fechaFinFiltro">
+                </div>
+                <button onclick="descargarCSV()" class="btn" style="width: auto; padding: 8px 15px; font-size: 0.9rem;">📥 Excel (CSV)</button>
             </div>
 
             <div class="dashboard-grid">
                 <div class="stat-card">
-                    <h3>Almuerzos Entregados (Día Seleccionado)</h3>
+                    <h3>Total Almuerzos Entregados</h3>
                     <p class="stat-number" id="lblTotalAsistentes">0</p>
+                    <p style="color: #666; font-size: 0.9rem;">En el periodo seleccionado</p>
                 </div>
                 
-                <div class="stat-card" style="grid-row: span 2;">
-                    <h3>Estudiantes que FALTARON al almuerzo</h3>
-                    <div class="missing-list" id="listaFaltantes">
+                <div class="stat-card">
+                    <h3>Calificación Promedio</h3>
+                    <p class="stat-number" id="lblPromedioCalificacion" style="color: #f39c12;">-</p>
+                    <p style="color: #666; font-size: 0.9rem;" id="lblTotalCalificaciones">0 calificaciones</p>
+                </div>
+
+                <div class="stat-card" style="grid-column: 1 / -1;">
+                    <h3>Atención por Día de la Semana</h3>
+                    <canvas id="chartDiasSemana"></canvas>
+                </div>
+
+                <div class="stat-card" style="grid-column: 1 / -1;">
+                    <h3 style="color: #f39c12;">Observaciones y Quejas (Periodo)</h3>
+                    <div class="obs-list" id="listaObservaciones">
                         <!-- Generado por JS -->
                     </div>
                 </div>
 
-                <div class="stat-card">
-                    <h3>Atención por Día de la Semana</h3>
-                    <canvas id="chartDiasSemana"></canvas>
+                <div class="stat-card" style="grid-column: 1 / -1;">
+                    <h3>Estudiantes que NO almorzaron</h3>
+                    <p style="font-size: 0.85rem; color: #888;">(Calculado como aquellos que no tienen registros de almuerzo en el rango de fechas actual)</p>
+                    <div class="missing-list" id="listaFaltantes">
+                        <!-- Generado por JS -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -152,41 +196,42 @@
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwz3SHQon_5TYorLV9MH8lXvNM4a0AR1b75b8_9YlmIMUmFJrM-6eVcI-a0piutEiSK/exec";
         let estudiantesBase = [];
         let asistenciaBase = [];
+        let calificacionesBase = [];
         let chartInstancia = null;
 
         async function cargarDatos() {
             try {
-                // Fetch de estudiantes
-                const resEst = await fetch(GOOGLE_SCRIPT_URL);
+                const [resEst, resAsist, resCal] = await Promise.all([
+                    fetch(GOOGLE_SCRIPT_URL),
+                    fetch(GOOGLE_SCRIPT_URL + "?data=asistencia"),
+                    fetch(GOOGLE_SCRIPT_URL + "?data=calificaciones")
+                ]);
+
                 if (!resEst.ok) throw new Error("Error crgando estudiantes");
                 estudiantesBase = await resEst.json();
 
-                // Fetch de asistencia usando el endpoint nuevo
-                const resAsist = await fetch(GOOGLE_SCRIPT_URL + "?data=asistencia");
-                if (!resAsist.ok) throw new Error("Error crgando asistencia");
-                asistenciaBase = await resAsist.json();
+                if (resAsist.ok) {
+                    asistenciaBase = await resAsist.json();
+                    asistenciaBase.forEach(registro => { registro.fechaObj = new Date(registro.fecha); });
+                }
 
-                // Procesar fechas de asistencia a objetos Date locales
-                asistenciaBase.forEach(registro => {
-                    registro.fechaObj = new Date(registro.fecha);
-                });
+                if (resCal.ok) {
+                    calificacionesBase = await resCal.json();
+                    calificacionesBase.forEach(registro => { registro.fechaObj = new Date(registro.fecha); });
+                }
 
                 document.getElementById('loader').style.display = 'none';
                 document.getElementById('dashboard-content').style.display = 'block';
 
-                // Inicializar filtro a HOY
                 const hoy = new Date();
                 const hoyStr = hoy.toISOString().split('T')[0];
-                const inputFecha = document.getElementById('fechaFiltro');
-                inputFecha.value = hoyStr;
+                document.getElementById('fechaInicioFiltro').value = hoyStr;
+                document.getElementById('fechaFinFiltro').value = hoyStr;
 
-                actualizarDashboard(inputFecha.value);
-                renderizarGraficoSemanal();
+                actualizarDashboard();
 
-                // Listener para cuando cambien la fecha
-                inputFecha.addEventListener('change', (e) => {
-                    actualizarDashboard(e.target.value);
-                });
+                document.getElementById('fechaInicioFiltro').addEventListener('change', actualizarDashboard);
+                document.getElementById('fechaFinFiltro').addEventListener('change', actualizarDashboard);
 
             } catch (error) {
                 console.error(error);
@@ -194,145 +239,131 @@
             }
         }
 
-        function actualizarDashboard(fechaStr) {
-            if(!fechaStr) return;
+        function getFechasFiltro() {
+            const strInicio = document.getElementById('fechaInicioFiltro').value;
+            const strFin = document.getElementById('fechaFinFiltro').value;
+            if(!strInicio || !strFin) return null;
             
-            // Fecha seleccionada (evitando problema de timezone al crear new Date directamente del value)
-            const partesFecha = fechaStr.split('-');
-            const year = parseInt(partesFecha[0]);
-            const month = parseInt(partesFecha[1]) - 1;
-            const day = parseInt(partesFecha[2]);
+            const startDate = new Date(strInicio + "T00:00:00");
+            const endDate = new Date(strFin + "T23:59:59");
+            return { startDate, endDate };
+        }
+
+        function actualizarDashboard() {
+            const fechas = getFechasFiltro();
+            if(!fechas) return;
+            const { startDate, endDate } = fechas;
             
-            const txtLista = document.getElementById('listaFaltantes');
-            txtLista.innerHTML = '';
+            // 1. Asistencia
+            const asistieronRango = new Set();
+            let totalEntregas = 0;
             
-            // 1. Quienes asistieron este día
-            const asistieronHoy = new Set();
             asistenciaBase.forEach(reg => {
                 if(reg.fechaObj && !isNaN(reg.fechaObj.getTime())) {
-                    if (reg.fechaObj.getFullYear() === year &&
-                        reg.fechaObj.getMonth() === month &&
-                        reg.fechaObj.getDate() === day) {
-                        asistieronHoy.add(reg.documento);
+                    if (reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
+                        asistieronRango.add(reg.documento);
+                        totalEntregas++;
                     }
                 }
             });
 
-            document.getElementById('lblTotalAsistentes').innerText = asistieronHoy.size;
+            document.getElementById('lblTotalAsistentes').innerText = totalEntregas;
 
-            // 2. Calcular quienes faltaron
+            // 2. Faltantes
+            const txtLista = document.getElementById('listaFaltantes');
+            txtLista.innerHTML = '';
             const porGrado = {};
             let hayFaltantes = false;
 
-            // agrupamos a TODOS primero
             estudiantesBase.forEach(est => {
                 const grado = est.grado || "Sin Grado";
                 if(!porGrado[grado]) porGrado[grado] = [];
                 
-                if(!asistieronHoy.has(est.documento)) {
+                if(!asistieronRango.has(est.documento)) {
                     porGrado[grado].push(est);
                     hayFaltantes = true;
                 }
             });
 
             if(!hayFaltantes) {
-                txtLista.innerHTML = '<p style="color: #10B981; font-weight: bold; text-align: center;">¡Todos los estudiantes registrados almorzaron este día!</p>';
-                return;
-            }
-
-            // Ordenar grados alfabéticamente
-            const gradosOrdenados = Object.keys(porGrado).sort();
-            
-            for (const grado of gradosOrdenados) {
-                const faltantesGrp = porGrado[grado];
-                if(faltantesGrp.length > 0) {
-                    const grpDiv = document.createElement('div');
-                    grpDiv.className = 'missing-group';
-                    
-                    const h4 = document.createElement('h4');
-                    h4.innerText = `${grado} (${faltantesGrp.length} faltantes)`;
-                    grpDiv.appendChild(h4);
-
-                    const ul = document.createElement('ul');
-                    // Ordenar por nombre
-                    faltantesGrp.sort((a,b) => a.nombre.localeCompare(b.nombre));
-                    
-                    faltantesGrp.forEach(est => {
-                        const li = document.createElement('li');
-                        li.innerText = est.nombre;
-                        ul.appendChild(li);
-                    });
-
-                    grpDiv.appendChild(ul);
-                    txtLista.appendChild(grpDiv);
+                txtLista.innerHTML = '<p style="color: #10B981; font-weight: bold; text-align: center;">¡Todos los estudiantes asistieron en este periodo!</p>';
+            } else {
+                const gradosOrdenados = Object.keys(porGrado).sort();
+                for (const grado of gradosOrdenados) {
+                    const faltantesGrp = porGrado[grado];
+                    if(faltantesGrp.length > 0) {
+                        const grpDiv = document.createElement('div');
+                        grpDiv.className = 'missing-group';
+                        const h4 = document.createElement('h4');
+                        h4.innerText = `${grado} (${faltantesGrp.length} faltantes)`;
+                        grpDiv.appendChild(h4);
+                        const ul = document.createElement('ul');
+                        faltantesGrp.sort((a,b) => a.nombre.localeCompare(b.nombre));
+                        faltantesGrp.forEach(est => {
+                            const li = document.createElement('li');
+                            li.innerText = est.nombre;
+                            ul.appendChild(li);
+                        });
+                        grpDiv.appendChild(ul);
+                        txtLista.appendChild(grpDiv);
+                    }
                 }
             }
-        }
 
-        function descargarCSV() {
-            const fechaVal = document.getElementById('fechaFiltro').value;
-            if(!fechaVal) return;
-            
-            let csvData = "Documento,Nombre,Grado,Tipo,Asistio\n";
-            
-            const partesFecha = fechaVal.split('-');
-            const year = parseInt(partesFecha[0]);
-            const month = parseInt(partesFecha[1]) - 1;
-            const day = parseInt(partesFecha[2]);
-            
-            const asistieronHoy = new Set();
-            asistenciaBase.forEach(reg => {
+            // 3. Calificaciones y Observaciones
+            let sumaCals = 0;
+            let totalCals = 0;
+            const listaObsHtml = document.getElementById('listaObservaciones');
+            listaObsHtml.innerHTML = '';
+            let observacionesRango = [];
+
+            calificacionesBase.forEach(reg => {
                 if(reg.fechaObj && !isNaN(reg.fechaObj.getTime())) {
-                    if (reg.fechaObj.getFullYear() === year &&
-                        reg.fechaObj.getMonth() === month &&
-                        reg.fechaObj.getDate() === day) {
-                        asistieronHoy.add(reg.documento);
+                    if (reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
+                        sumaCals += Number(reg.calificacion);
+                        totalCals++;
+                        if (reg.observacion && String(reg.observacion).trim() !== "") {
+                            observacionesRango.push(reg);
+                        }
                     }
                 }
             });
 
-            // Ordenar por grado, luego por nombre
-            const copiaEsts = [...estudiantesBase];
-            copiaEsts.sort((a,b) => {
-                if(a.grado === b.grado) return a.nombre.localeCompare(b.nombre);
-                return (a.grado || "").localeCompare(b.grado || "");
-            });
+            if(totalCals > 0) {
+                const prom = (sumaCals / totalCals).toFixed(1);
+                document.getElementById('lblPromedioCalificacion').innerText = prom + " ⭐";
+                document.getElementById('lblTotalCalificaciones').innerText = totalCals + (totalCals === 1 ? " calificación" : " calificaciones");
+            } else {
+                document.getElementById('lblPromedioCalificacion').innerText = "-";
+                document.getElementById('lblTotalCalificaciones').innerText = "0 calificaciones";
+            }
 
-            copiaEsts.forEach(est => {
-                const asistio = asistieronHoy.has(est.documento) ? "SI" : "NO";
-                const nomEscapado = est.nombre ? est.nombre.replace(/"/g, '""') : "";
-                const row = [
-                    est.documento, 
-                    `"${nomEscapado}"`, 
-                    `"${est.grado || ''}"`, 
-                    est.tipo || "Titular", 
-                    asistio
-                ].join(",");
-                csvData += row + "\n";
-            });
+            if(observacionesRango.length > 0) {
+                observacionesRango.forEach(obs => {
+                    const fStr = obs.fechaObj.toLocaleDateString();
+                    listaObsHtml.innerHTML += `
+                        <div class="obs-item">
+                            <strong>${obs.calificacion}⭐</strong> <span style="color:#666; font-size: 0.8rem;">(${fStr})</span><br>
+                            <em>"${obs.observacion}"</em>
+                        </div>
+                    `;
+                });
+            } else {
+                listaObsHtml.innerHTML = '<p style="color: #666; text-align: center;">No hay observaciones en este periodo.</p>';
+            }
 
-            // Agrega BOM para que Excel detecte utf-8
-            const blob = new Blob(["\uFEFF"+csvData], { type: 'text/csv;charset=utf-8;' }); 
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.setAttribute("href", url);
-            link.setAttribute("download", `Reporte_PAE_${fechaVal}.csv`);
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            // 4. Grafico
+            renderizarGraficoSemanal(startDate, endDate);
         }
 
-        function renderizarGraficoSemanal() {
-            // Contar registros por día de la semana
-            // 0 = Dom, 1 = Lun, 2 = Mar...
+        function renderizarGraficoSemanal(startDate, endDate) {
             const conteo = { 1:0, 2:0, 3:0, 4:0, 5:0 }; 
             
             asistenciaBase.forEach(reg => {
                 if(reg.fechaObj && !isNaN(reg.fechaObj.getTime())) {
-                    const diaSemana = reg.fechaObj.getDay();
-                    if(diaSemana >= 1 && diaSemana <= 5) {
-                        // Solo sumar de lunes a viernes
-                        conteo[diaSemana]++;
+                    if (reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
+                        const diaSemana = reg.fechaObj.getDay();
+                        if(diaSemana >= 1 && diaSemana <= 5) conteo[diaSemana]++;
                     }
                 }
             });
@@ -341,7 +372,6 @@
             const data = [conteo[1], conteo[2], conteo[3], conteo[4], conteo[5]];
 
             const ctx = document.getElementById('chartDiasSemana').getContext('2d');
-            
             if(chartInstancia) chartInstancia.destroy();
             
             chartInstancia = new Chart(ctx, {
@@ -360,15 +390,80 @@
                 options: {
                     responsive: true,
                     scales: {
-                        y: {
-                            beginAtZero: true
-                        }
+                        y: { beginAtZero: true }
                     }
                 }
             });
         }
 
-        // Cargar todo al iniciar
+        function descargarCSV() {
+            const strInicio = document.getElementById('fechaInicioFiltro').value;
+            const strFin = document.getElementById('fechaFinFiltro').value;
+            if(!strInicio || !strFin) return;
+            
+            const startDate = new Date(strInicio + "T00:00:00");
+            const endDate = new Date(strFin + "T23:59:59");
+            
+            let csvData = "Documento,Nombre,Grado,Tipo,Asistencias,Calificaciones,Observaciones\n";
+            
+            // Mapas
+            const asistenciaM = {};
+            const calificacionM = {};
+            
+            asistenciaBase.forEach(reg => {
+                if(reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
+                    asistenciaM[reg.documento] = (asistenciaM[reg.documento] || 0) + 1;
+                }
+            });
+            
+            calificacionesBase.forEach(reg => {
+                if(reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
+                    if(!calificacionM[reg.documento]) calificacionM[reg.documento] = { cals: [], obs: [] };
+                    calificacionM[reg.documento].cals.push(Number(reg.calificacion));
+                    if(reg.observacion) calificacionM[reg.documento].obs.push(reg.observacion);
+                }
+            });
+
+            const copiaEsts = [...estudiantesBase];
+            copiaEsts.sort((a,b) => {
+                if(a.grado === b.grado) return a.nombre.localeCompare(b.nombre);
+                return (a.grado || "").localeCompare(b.grado || "");
+            });
+
+            copiaEsts.forEach(est => {
+                const cantAsistencias = asistenciaM[est.documento] || 0;
+                let calsData = "";
+                let obsData = "";
+                if(calificacionM[est.documento]) {
+                    const cals = calificacionM[est.documento].cals;
+                    const prom = (cals.reduce((a,b)=>a+b, 0) / cals.length).toFixed(1);
+                    calsData = prom + " (" + cals.length + "x)";
+                    obsData = `"${calificacionM[est.documento].obs.join(' | ').replace(/"/g, '""')}"`;
+                }
+
+                const nomEscapado = est.nombre ? est.nombre.replace(/"/g, '""') : "";
+                const row = [
+                    est.documento, 
+                    `"${nomEscapado}"`, 
+                    `"${est.grado || ''}"`, 
+                    est.tipo || "Titular", 
+                    cantAsistencias,
+                    calsData,
+                    obsData
+                ].join(",");
+                csvData += row + "\n";
+            });
+
+            const blob = new Blob(["\uFEFF"+csvData], { type: 'text/csv;charset=utf-8;' }); 
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `Reporte_PAE_${strInicio}_al_${strFin}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         cargarDatos();
     </script>
     <script>
