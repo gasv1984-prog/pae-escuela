@@ -169,9 +169,14 @@
                     <p style="color: #666; font-size: 0.9rem;" id="lblTotalCalificaciones">0 calificaciones</p>
                 </div>
 
-                <div class="stat-card" style="grid-column: 1 / -1;">
+                <div class="stat-card">
                     <h3>Atención por Día de la Semana</h3>
                     <canvas id="chartDiasSemana"></canvas>
+                </div>
+
+                <div class="stat-card">
+                    <h3>Distribución de Calificaciones</h3>
+                    <canvas id="chartCalificaciones"></canvas>
                 </div>
 
                 <div class="stat-card" style="grid-column: 1 / -1;">
@@ -198,6 +203,7 @@
         let asistenciaBase = [];
         let calificacionesBase = [];
         let chartInstancia = null;
+        let chartCalsInstancia = null;
 
         async function cargarDatos() {
             try {
@@ -316,11 +322,14 @@
             const listaObsHtml = document.getElementById('listaObservaciones');
             listaObsHtml.innerHTML = '';
             let observacionesRango = [];
+            const conteoCals = { 1:0, 2:0, 3:0, 4:0, 5:0 };
 
             calificacionesBase.forEach(reg => {
                 if(reg.fechaObj && !isNaN(reg.fechaObj.getTime())) {
                     if (reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
-                        sumaCals += Number(reg.calificacion);
+                        const val = Number(reg.calificacion);
+                        sumaCals += val;
+                        if(val >= 1 && val <= 5) conteoCals[val]++;
                         totalCals++;
                         if (reg.observacion && String(reg.observacion).trim() !== "") {
                             observacionesRango.push(reg);
@@ -352,35 +361,36 @@
                 listaObsHtml.innerHTML = '<p style="color: #666; text-align: center;">No hay observaciones en este periodo.</p>';
             }
 
-            // 4. Grafico
-            renderizarGraficoSemanal(startDate, endDate);
+            // 4. Graficos
+            renderizarGraficos(startDate, endDate, conteoCals);
         }
 
-        function renderizarGraficoSemanal(startDate, endDate) {
-            const conteo = { 1:0, 2:0, 3:0, 4:0, 5:0 }; 
+        function renderizarGraficos(startDate, endDate, conteoCals) {
+            // Grafico 1: Dias de la Semana
+            const conteoAsist = { 1:0, 2:0, 3:0, 4:0, 5:0 }; 
             
             asistenciaBase.forEach(reg => {
                 if(reg.fechaObj && !isNaN(reg.fechaObj.getTime())) {
                     if (reg.fechaObj >= startDate && reg.fechaObj <= endDate) {
                         const diaSemana = reg.fechaObj.getDay();
-                        if(diaSemana >= 1 && diaSemana <= 5) conteo[diaSemana]++;
+                        if(diaSemana >= 1 && diaSemana <= 5) conteoAsist[diaSemana]++;
                     }
                 }
             });
 
-            const labels = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
-            const data = [conteo[1], conteo[2], conteo[3], conteo[4], conteo[5]];
+            const labelsDias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
+            const dataDias = [conteoAsist[1], conteoAsist[2], conteoAsist[3], conteoAsist[4], conteoAsist[5]];
 
-            const ctx = document.getElementById('chartDiasSemana').getContext('2d');
+            const ctxDias = document.getElementById('chartDiasSemana').getContext('2d');
             if(chartInstancia) chartInstancia.destroy();
             
-            chartInstancia = new Chart(ctx, {
+            chartInstancia = new Chart(ctxDias, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels: labelsDias,
                     datasets: [{
-                        label: 'Total Acumulado de Almuerzos',
-                        data: data,
+                        label: 'Almuerzos Acumulados',
+                        data: dataDias,
                         backgroundColor: 'rgba(52, 168, 83, 0.7)',
                         borderColor: '#198754',
                         borderWidth: 1,
@@ -389,8 +399,32 @@
                 },
                 options: {
                     responsive: true,
-                    scales: {
-                        y: { beginAtZero: true }
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Grafico 2: Calificaciones (Doughnut)
+            const labelsCals = ['😡 (1)', '🙁 (2)', '😐 (3)', '🙂 (4)', '😍 (5)'];
+            const dataCals = [conteoCals[1], conteoCals[2], conteoCals[3], conteoCals[4], conteoCals[5]];
+            const bgColors = ['#e74c3c', '#e67e22', '#f1c40f', '#3498db', '#2ecc71'];
+
+            const ctxCals = document.getElementById('chartCalificaciones').getContext('2d');
+            if(chartCalsInstancia) chartCalsInstancia.destroy();
+
+            chartCalsInstancia = new Chart(ctxCals, {
+                type: 'doughnut',
+                data: {
+                    labels: labelsCals,
+                    datasets: [{
+                        data: dataCals,
+                        backgroundColor: bgColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'right' }
                     }
                 }
             });
